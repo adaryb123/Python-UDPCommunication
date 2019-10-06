@@ -71,6 +71,24 @@ def pusti_ako_klient():
      moj_socket.close()
 
 
+def nacitaj_subor(nazov):
+    f = open("nazov", "rb")
+    retazec = []
+    try:
+        byte = f.read(1)
+        while byte != b"":
+            retazec.append(byte)
+            byte = f.read(1)
+    finally:
+        f.close()
+        print("nacitane")
+        return retazec
+
+def uloz_subor(nazov,retazec):
+    f = open("nazov", "wb")
+    for i in range(len(retazec)):
+        f.write(retazec[i])
+    print("ulozene")
 
 
 moznost = input("Ak sa ma tento PC spravat ako server, zadajte 1, ak sa ma spravat ako klient,zadajte 2\n")
@@ -79,6 +97,8 @@ if moznost == "1":
     pusti_ako_server()
 elif moznost == "2":
     pusti_ako_klient()
+elif moznost == "3":
+    uloz_subor("output.jpg",nacitaj_subor("pokus.jpg"))
 else:
     print("Zadali ste zly vstup")
 
