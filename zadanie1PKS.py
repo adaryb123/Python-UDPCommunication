@@ -1,13 +1,14 @@
 import socket
 
 def pusti_ako_server():
-    ip_servera = '192.168.56.1'
+    ip_servera = '147.175.181.30'
     port = 30000
-    velkost_fragmentu = 512
+    velkost_fragmentu = 51200
     moj_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     moj_socket.bind((ip_servera,port))
 
     print("Server spusteny.")
+    print("Server ma ip " + ip_servera + " a port " + str(port))
 
     while True:
         sprava, klient = moj_socket.recvfrom(velkost_fragmentu)
@@ -16,6 +17,11 @@ def pusti_ako_server():
             break
         elif sprava.decode() == "REQUESTING CONNECT":
             moj_socket.sendto("YOU MAY CONNECT".encode(), klient)
+        elif sprava.decode() == 'O':
+             sprava, klient = moj_socket.recvfrom(velkost_fragmentu)
+             print("Dosiel nam subor\n");
+             uloz_subor("output.jpg",sprava)
+             moj_socket.sendto("SUBOR ULOZENY".encode(), klient)
         else:
             print("Klient s adresou "+ str(klient) + "poslal toto:" + sprava.decode())
             odpoved = sprava.decode().upper()
@@ -24,19 +30,27 @@ def pusti_ako_server():
 
 
 def pusti_ako_klient():
-     ip_servera = '192.168.56.1'
+     ip_servera = '147.175.181.30'
      port = 30000
      server = (ip_servera,port)
-     velkost_fragmentu = 512
+     velkost_fragmentu = 51200
      print("Defaulna ip servera je: " + ip_servera)
      print("Defaultny port je:" + str(port))
      print("Defaultna maximalne velkost fragmentu je: "+str(velkost_fragmentu))
+     print("")
      moj_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
      moj_socket.connect((ip_servera,port))
 
-     prikaz = input("Zadajte Z pre nastavenie ip adresy alebo portu,\nP pre pripojenie na server,\n F pre nastavenie maximalnej velkosti fragmentu,\n M pre poslanie spravy,\n K pre ukoncienie\n")
+     print("Zadajte N pre nastavenie ip adresy alebo portu")
+     print("Zadajte P pre pripojenie na server")
+     print("Zadajte F pre nastavenie maximalnej velkosti fragmentu")
+     print("Zadajte S pre poslanie spravy")
+     print("Zadajte O pre poslanie obrazku")
+     print("Zadajte K pre ukoncienie\n")
+     prikaz = input()
+
      while True:
-        if prikaz == 'Z':
+        if prikaz == 'N':
             ip_servera = input("Zadajte novu ip:  ")
             port = int(input("Zadajte novy port:  "))
 
@@ -59,12 +73,18 @@ def pusti_ako_klient():
             moj_socket.sendto(prikaz.encode(), server)
             break
 
-        elif prikaz == 'M':
+        elif prikaz == 'S':
             sprava = input("Napiste spravu:  ")
             moj_socket.sendto(sprava.encode(), server)
             odpoved, server = moj_socket.recvfrom(velkost_fragmentu)
             print("zo servera prislo toto: " + odpoved.decode())
 
+        elif prikaz == 'O':
+            moj_socket.sendto('O'.encode(),server)
+            nazov = input("Zadajte nazov suboru:   ")
+            moj_socket.sendto(nacitaj_subor(nazov),server)
+            odpoved, server = moj_socket.recvfrom(velkost_fragmentu)
+            print("zo servera prislo toto: " + odpoved.decode())
         else:
             print("Neplatny prikaz")
         prikaz = input("Napiste vas dalsi prikaz:  ")
@@ -72,22 +92,14 @@ def pusti_ako_klient():
 
 
 def nacitaj_subor(nazov):
-    f = open("nazov", "rb")
-    retazec = []
-    try:
-        byte = f.read(1)
-        while byte != b"":
-            retazec.append(byte)
-            byte = f.read(1)
-    finally:
-        f.close()
-        print("nacitane")
-        return retazec
+    with open(nazov, mode="rb") as file: 
+         retazec = file.read()
+    return retazec
+
 
 def uloz_subor(nazov,retazec):
-    f = open("nazov", "wb")
-    for i in range(len(retazec)):
-        f.write(retazec[i])
+    with open(nazov,mode = "wb") as file:
+        file.write(retazec)
     print("ulozene")
 
 
@@ -101,4 +113,3 @@ elif moznost == "3":
     uloz_subor("output.jpg",nacitaj_subor("pokus.jpg"))
 else:
     print("Zadali ste zly vstup")
-
