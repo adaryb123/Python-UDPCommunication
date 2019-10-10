@@ -3,12 +3,14 @@ import socket
 def pusti_ako_server():
     ip_servera = '147.175.181.30'
     port = 30000
-    velkost_fragmentu = 51200
+    velkost_fragmentu = 65535
     moj_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     moj_socket.bind((ip_servera,port))
 
     print("Server spusteny.")
     print("Server ma ip " + ip_servera + " a port " + str(port))
+    print("Defaultna maximalne velkost fragmentu je: "+str(velkost_fragmentu))
+    print("")
 
     while True:
         sprava, klient = moj_socket.recvfrom(velkost_fragmentu+1)
@@ -16,28 +18,32 @@ def pusti_ako_server():
         if prikaz == "K":
              print("Koniec")
              break
+
         elif prikaz == "P":
               moj_socket.sendto("Y".encode(), klient)
-        elif prikaz == "Y":
-             print("Klient sa uspesne pripojil")
+              sprava, klient = moj_socket.recvfrom(velkost_fragmentu+1)
+              prikaz,sprava = dekoduj_a_zisti_prikaz(sprava.decode())
+              if prikaz == "Y":
+                 print("Klient sa uspesne pripojil")
+
         elif prikaz == "F":
              velkost_fragmentu = int(sprava)
              print("Velkost fragmentu nastavena na : "+ str(velkost_fragmentu))
-            # moj_socket.sendto("H".encode(), klient)
+
         elif prikaz == 'O':
              sprava, klient = moj_socket.recvfrom(velkost_fragmentu)
              print("Dosiel nam subor\n");
              uloz_subor("output.jpg",sprava)
              moj_socket.sendto("SUBOR ULOZENY".encode(), klient)
+
         elif prikaz == 'S':
              while (prikaz != "E"):
                 print("Klient: " + sprava)
                 moj_socket.sendto("Y".encode(), klient)
                 sprava, klient = moj_socket.recvfrom(velkost_fragmentu+1)
                 prikaz,sprava = dekoduj_a_zisti_prikaz(sprava.decode())
-                print(prikaz)
 
-      #  moj_socket.sendto("H".encode(), klient)
+        moj_socket.sendto("H".encode(), klient)
     moj_socket.close()
 
 
@@ -45,7 +51,7 @@ def pusti_ako_klient():
      ip_servera = '147.175.181.30'
      port = 30000
      server = (ip_servera,port)
-     velkost_fragmentu = 51200
+     velkost_fragmentu = 65535
      print("Defaulna ip servera je: " + ip_servera)
      print("Defaultny port je:" + str(port))
      print("Defaultna maximalne velkost fragmentu je: "+str(velkost_fragmentu))
@@ -59,7 +65,7 @@ def pusti_ako_klient():
      print("Zadajte S pre poslanie spravy")
      print("Zadajte O pre poslanie obrazku")
      print("Zadajte K pre ukoncienie\n")
-     prikaz = input()
+     prikaz = input("Sem napiste prikaz:  ")
 
      som_pripojeny = False
      while True:
@@ -102,7 +108,6 @@ def pusti_ako_klient():
                 moj_socket.sendto(('S' + cast_spravy).encode(), server)
                 reakcia, server = moj_socket.recvfrom(velkost_fragmentu)
                 reakcia = reakcia.decode()
-                print(reakcia)
 
             moj_socket.sendto("E".encode(), server)
 
@@ -112,11 +117,15 @@ def pusti_ako_klient():
             moj_socket.sendto(nacitaj_subor(nazov),server)
             odpoved, server = moj_socket.recvfrom(velkost_fragmentu)
             print("Server: " + odpoved.decode())
+
         else:
             print("Zadali ste zly prikaz alebo nieste pripojeny na server")
-  #      odpoved, ip_servera = moj_socket.recvfrom(velkost_fragmentu)
-  #      if (odpoved.decode() == "H"):
-         prikaz = input("Napiste vas dalsi prikaz:  ")
+            prikaz = input("Napiste vas dalsi prikaz:  ")
+            continue
+
+        odpoved, ip_servera = moj_socket.recvfrom(velkost_fragmentu)
+        if (odpoved.decode() == "H"):
+            prikaz = input("Napiste vas dalsi prikaz:  ")
      moj_socket.close()
 
 def dekoduj_a_zisti_prikaz(retazec):
