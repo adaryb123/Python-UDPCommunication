@@ -31,10 +31,17 @@ def pusti_ako_server():
              print("Velkost fragmentu nastavena na : "+ str(velkost_fragmentu))
 
         elif prikaz == 'O':
-             sprava, klient = moj_socket.recvfrom(velkost_fragmentu)
-             print("Dosiel nam subor\n");
-             uloz_subor("output.jpg",sprava)
-             moj_socket.sendto("SUBOR ULOZENY".encode(), klient)
+             buffer = b""
+             header = ""
+             while (header != "E"):
+                    zakodovana_sprava, klient = moj_socket.recvfrom(10000)
+                    header = zakodovana_sprava[:1].decode()
+                    buffer += zakodovana_sprava[1:] 
+                    moj_socket.sendto("Y".encode(), klient)
+             with open("output.jpg","wb") as file:
+                    file.write(buffer)
+                    print("Obrazok prijaty")
+             print("noic")
 
         elif prikaz == 'S':
              while (prikaz != "E"):
@@ -112,11 +119,19 @@ def pusti_ako_klient():
             moj_socket.sendto("E".encode(), server)
 
         elif prikaz == 'O' and som_pripojeny == True:
-            moj_socket.sendto('O'.encode(),server)
-            nazov = input("Zadajte nazov suboru:   ")
-            moj_socket.sendto(nacitaj_subor(nazov),server)
-            odpoved, server = moj_socket.recvfrom(velkost_fragmentu)
-            print("Server: " + odpoved.decode())
+            nazov = input("Zadajte nazov obrazku:  ")
+            reakcia = b"Y"
+            moj_socket.sendto("O".encode(), server)
+            with open(nazov,"rb") as file:
+                buffer = file.read()
+            while (buffer != b""):
+                buffer_part = buffer[:velkost_fragmentu]
+                buffer = buffer[velkost_fragmentu:]
+                moj_socket.sendto("X".encode() + buffer_part, server)
+                reakcia, server = moj_socket.recvfrom(velkost_fragmentu+1)
+            print("Hotovo")
+            moj_socket.sendto("E".encode(), server)
+            reakcia, server = moj_socket.recvfrom(velkost_fragmentu+1)
 
         else:
             print("Zadali ste zly prikaz alebo nieste pripojeny na server")
@@ -124,6 +139,7 @@ def pusti_ako_klient():
             continue
 
         odpoved, ip_servera = moj_socket.recvfrom(velkost_fragmentu)
+        print("prislo : "+odpoved.decode())
         if (odpoved.decode() == "H"):
             prikaz = input("Napiste vas dalsi prikaz:  ")
      moj_socket.close()
@@ -132,17 +148,6 @@ def dekoduj_a_zisti_prikaz(retazec):
     prikaz= retazec[0];
     retazec = retazec[1:]
     return prikaz,retazec
-
-def nacitaj_subor(nazov):
-    with open(nazov, mode="rb") as file: 
-         retazec = file.read()
-    return retazec
-
-
-def uloz_subor(nazov,retazec):
-    with open(nazov,mode = "wb") as file:
-        file.write(retazec)
-    print("ulozene")
 
 def velkost_fragmentu_do_retazca(velkost_fragmentu):
     velkost_v_retazci = str(velkost_fragmentu)
