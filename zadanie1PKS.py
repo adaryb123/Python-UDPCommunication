@@ -2,6 +2,9 @@ import socket
 
 velkost_fragmentu = 65535
 
+#--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 def pustim_sa_pri_starte_servera():
     ip_servera = '147.175.181.30'
     port = 30000
@@ -11,16 +14,16 @@ def pustim_sa_pri_starte_servera():
     print("")
     return ip_servera,port,velkost_fragmentu
 
-def dekoduj_a_zisti_prikaz(retazec):
-    prikaz= retazec[0];
-    retazec = retazec[1:]
-    return prikaz,retazec
-
 def server_potvrdi_pripojenie_klienta(moj_socket,klient):
     moj_socket.sendto("Y".encode(), klient)
     sprava, klient = moj_socket.recvfrom(velkost_fragmentu+1)
     if sprava == "Y":
        print("Klient sa uspesne pripojil")
+
+def server_chce_prijat_velkost_fragmentu(moj_socket,klient):
+    sprava,klient = moj_socket.recvfrom(10)
+    velkost_fragmentu = sprava.decode()[1:]
+    print("nastavena velkost fragmentu na " + velkost_fragmentu)
 
 def server_chce_prijat_obrazok(moj_socket,klient):
     buffer = b""
@@ -39,10 +42,20 @@ def server_chce_prijat_spravu(moj_socket,klient):
     prikaz = ""
     while (prikaz != "E"):
         cast_spravy, klient = moj_socket.recvfrom(velkost_fragmentu+1)
-        prikaz,cast_spravy = dekoduj_a_zisti_prikaz(cast_spravy.decode())
-        sprava += cast_spravy
+        prikaz = cast_spravy[:1].decode()
+        sprava += cast_spravy[1:].decode()
         moj_socket.sendto("Y".encode(), klient)
     print("Sprava od klienta :" + sprava)
+
+
+
+
+
+
+
+
+
+
 
 def pusti_ako_server():
     ip_servera,port,velkost_fragmentu = pustim_sa_pri_starte_servera()
@@ -50,8 +63,9 @@ def pusti_ako_server():
     moj_socket.bind((ip_servera,port))
 
     while True:
-        sprava, klient = moj_socket.recvfrom(velkost_fragmentu+1)
-        prikaz,sprava = dekoduj_a_zisti_prikaz(sprava.decode())
+        prikaz, klient = moj_socket.recvfrom(1)
+        prikaz = prikaz.decode()
+
         if prikaz == "K":
              print("Koniec")
              break
@@ -60,8 +74,7 @@ def pusti_ako_server():
              server_potvrdi_pripojenie_klienta(moj_socket,klient)
 
         elif prikaz == "F":
-             velkost_fragmentu = int(sprava)
-             print("Velkost fragmentu nastavena na : "+ str(velkost_fragmentu))
+             server_chce_prijat_velkost_fragmentu(moj_socket,klient)
 
         elif prikaz == 'O':
              server_chce_prijat_obrazok(moj_socket,klient)
@@ -72,20 +85,7 @@ def pusti_ako_server():
         moj_socket.sendto("H".encode(), klient)
     moj_socket.close()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def pustim_sa_pri_starte_klienta():
      ip_servera = '147.175.181.30'
@@ -118,6 +118,7 @@ def klient_sa_chce_pripojit(moj_socket,server):
        return True                      #tu treba vyriesit co ked server neposle suhlas
 
 def klient_chce_nastavit_velkost_fragmentu(moj_socket,server):
+    moj_socket.sendto("F".encode(), server)
     velkost_fragmentu = int(input("Zadajte maximalnu velkost fragmentu:  "))            #tu este osetrit tu maximalnu velkost fragmentu
     print("Velkost fragmentu nastavena na : "+ str(velkost_fragmentu))
     moj_socket.sendto(("F" + velkost_fragmentu_do_retazca(velkost_fragmentu)).encode(), server)
@@ -151,6 +152,12 @@ def klient_chce_poslat_spravu(moj_socket,server):            # tu treba vyriesit
      moj_socket.sendto("E".encode(), server)
      reakcia, server = moj_socket.recvfrom(velkost_fragmentu+1)
 
+
+
+
+
+
+
 def pusti_ako_klient():
      ip_servera,port,server,velkost_fragmentu = pustim_sa_pri_starte_klienta()
      moj_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -171,7 +178,7 @@ def pusti_ako_klient():
             
         elif prikaz == 'K' and som_pripojeny == True:
             print("Koniec")
-            moj_socket.sendto(prikaz.encode(), server)
+            moj_socket.sendto("K".encode(), server)
             break
 
         elif prikaz == 'S' and som_pripojeny == True:
@@ -185,10 +192,14 @@ def pusti_ako_klient():
             prikaz = input("Napiste vas dalsi prikaz:  ")
             continue
 
-        odpoved, ip_servera = moj_socket.recvfrom(velkost_fragmentu)
+        odpoved, ip_servera = moj_socket.recvfrom(1)
         if (odpoved.decode() == "H"):
             prikaz = input("Napiste vas dalsi prikaz:  ")
      moj_socket.close()
+
+
+
+#--------------------------------------------------------------------------------------------------------------------------------------------------------
 
 moznost = input("Ak sa ma tento PC spravat ako server, zadajte 1, ak sa ma spravat ako klient,zadajte 2\n")
 
