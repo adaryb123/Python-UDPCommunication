@@ -3,60 +3,87 @@ import time
 import binascii
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------
-
+max_velkost = 1500
 
 def pustim_sa_pri_starte_servera():
     ip_servera = '147.175.181.30'
     port = 30000
-    velkost_fragmentu = 65535
     print("Server spusteny.")
     print("Server ma ip " + ip_servera + " a port " + str(port))
-    print("Defaultna maximalne velkost fragmentu je: "+str(velkost_fragmentu))
+    print("Defaultna maximalne velkost fragmentu je: "+str(max_velkost))
     print("")
-    return ip_servera,port,velkost_fragmentu
+    return ip_servera,port,max_velkost
 
 def server_potvrdi_pripojenie_klienta(moj_socket,klient,velkost_fragmentu):
     moj_socket.sendto("Y".encode(), klient)
-    sprava, klient = moj_socket.recvfrom(velkost_fragmentu+1)
+    sprava, klient = moj_socket.recvfrom(1)
     if sprava == "Y":
        print("Klient sa uspesne pripojil")
 
 def server_chce_prijat_velkost_fragmentu(moj_socket,klient):
-    sprava,klient = moj_socket.recvfrom(10)
-    velkost_fragmentu = int(sprava.decode()[1:])
+    sprava,klient = moj_socket.recvfrom(max_velkost)
+    velkost_fragmentu = int(sprava.decode())
     print("nastavena velkost fragmentu na " + str(velkost_fragmentu))
     return velkost_fragmentu
 
+def rozdel_fragment(fragment,velkost_fragmentu):                  
+        hlavicka = fragment[:-velkost_fragmentu]
+        data = fragment[-velkost_fragmentu:]
+        dekodovana_hlavicka = hlavicka.decode()
+        i = 0
+        poradie_fragmentu = ""
+        prijaty_checksum = ""
+        while dekodovana_hlavicka[i] != '/':
+            poradie_fragmentu += dekodovana_hlavicka[i]
+            i += 1
+        i += 1
+
+        while  dekodovana_hlavicka[i] != '#':
+             prijaty_checksum += dekodovana_hlavicka[i]
+             i += 1
+        i += 1
+
+        return poradie_fragmentu,prijaty_checksum,data
+
+
+
 def server_chce_prijat_obrazok(moj_socket,klient,velkost_fragmentu):
     buffer = b""
-    hlavicka = ""
-    while (hlavicka != "E"):
-        fragment, klient = moj_socket.recvfrom(velkost_fragmentu+ 11)
-        hlavicka = fragment[:1].decode()
-
-        prijaty_checksum = fragment[1:11].decode()
-        vypocitany_checksum = binascii.crc32(fragment[11:])
+    poradie_fragmentu = ""
+    while (1):
+        fragment, klient = moj_socket.recvfrom(max_velkost)
+        if (len(fragment) == 1):
+            break
+        poradie_fragmentu,prijaty_checksum,data = rozdel_fragment(fragment,velkost_fragmentu)
+        vypocitany_checksum = binascii.crc32(data)
    
         if (str(prijaty_checksum) == str(vypocitany_checksum)):
-           moj_socket.sendto("Y".encode(), klient)
-    #       print("iteracia")
-           buffer += fragment[11:]  
+           moj_socket.sendto(("Y" + poradie_fragmentu).encode(), klient)        
+           buffer += data
         else:
-           moj_socket.sendto("N".encode(), klient)
+           moj_socket.sendto(("N" + poradie_fragmentu).encode(), klient)
 
     with open("output.jpg","wb") as file:
         file.write(buffer)
     print("Obrazok prijaty")
        
 def server_chce_prijat_spravu(moj_socket,klient,velkost_fragmentu):
-    sprava = ""
-    hlavicka = ""
-    while (hlavicka != "E"):
-        fragment, klient = moj_socket.recvfrom(velkost_fragmentu+1)
-        hlavicka = fragment[:1].decode()
-        sprava += fragment[1:].decode()
-        moj_socket.sendto("Y".encode(), klient)
-    print("Sprava od klienta :" + sprava)
+    buffer = ""
+    poradie_fragmentu = ""
+    while (1):
+        fragment, klient = moj_socket.recvfrom(max_velkost)
+        if (len(fragment) == 1):
+            break
+        poradie_fragmentu,prijaty_checksum,data = rozdel_fragment(fragment,velkost_fragmentu)
+        vypocitany_checksum = binascii.crc32(data)
+   
+        if (str(prijaty_checksum) == str(vypocitany_checksum)):
+           moj_socket.sendto(("Y" + poradie_fragmentu).encode(), klient)        
+           buffer += data.decode()
+        else:
+           moj_socket.sendto(("N" + poradie_fragmentu).encode(), klient)            #skus poslat corruptnuty subor
+
+    print("Sprava od klienta :" + buffer)
 
 
 
@@ -108,10 +135,9 @@ def pustim_sa_pri_starte_klienta():
      ip_servera = '147.175.181.30'
      port = 30000
      server = (ip_servera,port)
-     velkost_fragmentu = 65535
      print("Defaulna ip servera je: " + ip_servera)
      print("Defaultny port je:" + str(port))
-     print("Defaultna maximalne velkost fragmentu je: "+str(velkost_fragmentu))
+     print("Defaultna maximalne velkost fragmentu je: "+str(max_velkost))
      print("")
      print("Zadajte N pre nastavenie ip adresy alebo portu")
      print("Zadajte P pre pripojenie na server")
@@ -119,12 +145,7 @@ def pustim_sa_pri_starte_klienta():
      print("Zadajte S pre poslanie spravy")
      print("Zadajte O pre poslanie obrazku")
      print("Zadajte K pre ukoncienie\n")
-     return ip_servera,port,server,velkost_fragmentu
-
-def velkost_fragmentu_do_retazca(velkost_fragmentu):
-    velkost_v_retazci = str(velkost_fragmentu)
-    finalny_retazec = (5- len(velkost_v_retazci))*'0' + velkost_v_retazci
-    return finalny_retazec
+     return ip_servera,port,server,max_velkost
 
 def klient_sa_chce_pripojit(moj_socket,server,velkost_fragmentu):
     moj_socket.sendto("P".encode(), server)
@@ -137,45 +158,68 @@ def klient_sa_chce_pripojit(moj_socket,server,velkost_fragmentu):
 
 def klient_chce_nastavit_velkost_fragmentu(moj_socket,server):
     moj_socket.sendto("F".encode(), server)
-    velkost_fragmentu = int(input("Zadajte maximalnu velkost fragmentu:  "))            #tu este osetrit tu maximalnu velkost fragmentu
-    print("Velkost fragmentu nastavena na : "+ str(velkost_fragmentu))
-    moj_socket.sendto(("F" + velkost_fragmentu_do_retazca(velkost_fragmentu)).encode(), server)
-    return velkost_fragmentu
+    velkost_fragmentu = input("Zadajte maximalnu velkost fragmentu:  ")        
+    if (int(velkost_fragmentu) > max_velkost - 100):                                                 #- velkost_hlavicky - velkost udp a ip hlaviciek)
+        velkost_fragmentu = str(max_velkost - 100)
+    print("Velkost fragmentu nastavena na : "+ velkost_fragmentu)
+    moj_socket.sendto(velkost_fragmentu.encode(), server)
+    return int(velkost_fragmentu)
+
+def vytvor_hlavicku(poradie_fragmentu,cast_obsahu):
+    hlavicka = str(poradie_fragmentu) +"/" + str(binascii.crc32(cast_obsahu)) + "#"              #zistit velkost hlavicky
+    return hlavicka.encode()
+
 
 def klient_chce_poslat_obrazok(moj_socket,server,velkost_fragmentu):          # tu treba vyriesit ked packety budu chybat, cakanie na acknowledgement
     nazov = input("Zadajte nazov obrazku:  ")
-    reakcia = b"Y"
+    reakcia = ""
     moj_socket.sendto("O".encode(), server)
     with open(nazov,"rb") as file:
         obsah = file.read()
+
+    poradie_fragmentu = 1
     while (obsah != b""):              
         cast_obsahu = obsah[:velkost_fragmentu]
-        checksum = binascii.crc32(cast_obsahu)
+        if (len(cast_obsahu) < velkost_fragmentu):
+             cast_obsahu += (velkost_fragmentu - len(cast_obsahu))*b" "
         obsah = obsah[velkost_fragmentu:]
-        moj_socket.sendto("X".encode() + str(checksum).encode()+ cast_obsahu, server)   
-        reakcia, server = moj_socket.recvfrom(1)
-        if (reakcia.decode() == "N"):
-            while (reakcia.decode() != "Y"):
-                moj_socket.sendto("X".encode() + str(checksum).encode()+ cast_obsahu, server)   
-                reakcia, server = moj_socket.recvfrom(1)
-                print("iteracia")
+
+        hlavicka = vytvor_hlavicku(poradie_fragmentu,cast_obsahu)
+        moj_socket.sendto(hlavicka + cast_obsahu, server)   
+
+        reakcia, server = moj_socket.recvfrom(max_velkost)
+        if (reakcia.decode() == "N"+str(poradie_fragmentu)):
+            while (reakcia.decode() != "Y" + str(poradie_fragmentu)):
+                moj_socket.sendto(hlavicka + cast_obsahu, server)    
+                reakcia, server = moj_socket.recvfrom(max_velkost)
+        poradie_fragmentu += 1
+
     print("Obrazok poslany")
     moj_socket.sendto("E".encode(), server)
-    reakcia, server = moj_socket.recvfrom(velkost_fragmentu+1)
 
 def klient_chce_poslat_spravu(moj_socket,server,velkost_fragmentu):            # tu treba vyriesit ked packety budu chybat, cakanie na acknowledgement
      sprava = input("Napiste spravu:  ")
-     reakcia = "Y"
+     reakcia = ""
      moj_socket.sendto("S".encode(), server)
+     poradie_fragmentu = 1
      while (sprava != ""):
          cast_spravy = sprava[:velkost_fragmentu]
+         if (len(cast_spravy) < velkost_fragmentu):
+             cast_spravy += (velkost_fragmentu - len(cast_spravy))*" "
          sprava = sprava[velkost_fragmentu:]
-         moj_socket.sendto(('X' + cast_spravy).encode(), server)
-         reakcia, server = moj_socket.recvfrom(velkost_fragmentu)
-         reakcia = reakcia.decode()
+        
+         hlavicka = vytvor_hlavicku(poradie_fragmentu,cast_spravy.encode())
+         moj_socket.sendto(hlavicka + cast_spravy.encode(), server)   
 
+         reakcia, server = moj_socket.recvfrom(max_velkost)
+         if (reakcia.decode() == "N"+str(poradie_fragmentu)):
+            while (reakcia.decode() != "Y" + str(poradie_fragmentu)):
+                moj_socket.sendto(hlavicka + cast_obsahu, server)    
+                reakcia, server = moj_socket.recvfrom(max_velkost)
+         poradie_fragmentu += 1
+
+     print("Sprava poslana")
      moj_socket.sendto("E".encode(), server)
-     reakcia, server = moj_socket.recvfrom(velkost_fragmentu+1)
 
 
 
@@ -203,7 +247,7 @@ def pusti_ako_klient():
             
         elif prikaz == 'K' and som_pripojeny == True:
             print("Koniec")
-            moj_socket.sendto("K".encode(), server,velkost_fragmentu)
+            moj_socket.sendto("K".encode(), server)
             break
 
         elif prikaz == 'S' and som_pripojeny == True:
