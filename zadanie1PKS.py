@@ -1,18 +1,20 @@
 import socket
-import time
 import binascii
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------
 max_velkost = 1500
 
 def pustim_sa_pri_starte_servera():
+  #  ip_servera = socket.gethostbyname(socket.gethostname())
+      #  print(ip_servera)
     ip_servera = '147.175.181.30'
     port = 30000
+    server = (ip_servera, port)
     print("Server spusteny.")
     print("Server ma ip " + ip_servera + " a port " + str(port))
     print("Defaultna maximalne velkost fragmentu je: "+str(max_velkost))
     print("")
-    return ip_servera,port,max_velkost
+    return server,max_velkost
 
 def server_potvrdi_pripojenie_klienta(moj_socket,klient,velkost_fragmentu):
     moj_socket.sendto("Y".encode(), klient)
@@ -96,19 +98,19 @@ def server_chce_prijat_spravu(moj_socket,klient,velkost_fragmentu):
 
 
 def pusti_ako_server():
-    ip_servera,port,velkost_fragmentu = pustim_sa_pri_starte_servera()
+    server,velkost_fragmentu = pustim_sa_pri_starte_servera()
     moj_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    moj_socket.bind((ip_servera,port))
+    moj_socket.bind(server)
 
     while True:
-  #      starting_time = time.time()
- #       while time.time() < starting_time + 10:
-  #         if (moj_socket.recvfrom(1)):
-    #          print("poslal ho")
-  #      print("neposlal ho")
-
-        prikaz, klient = moj_socket.recvfrom(1)
-        prikaz = prikaz.decode()
+        moj_socket.settimeout(20)
+        try:
+            prikaz, klient = moj_socket.recvfrom(1)
+            prikaz = prikaz.decode()
+            moj_socket.settimeout(None)
+        except:
+            print("Klient je neaktivny , server sa vypne")
+            prikaz= "K"
 
         if prikaz == "K":
              print("Koniec")
@@ -145,7 +147,7 @@ def pustim_sa_pri_starte_klienta():
      print("Zadajte S pre poslanie spravy")
      print("Zadajte O pre poslanie obrazku")
      print("Zadajte K pre ukoncienie\n")
-     return ip_servera,port,server,max_velkost
+     return server,max_velkost
 
 def klient_sa_chce_pripojit(moj_socket,server,velkost_fragmentu):
     moj_socket.sendto("P".encode(), server)
@@ -170,7 +172,7 @@ def vytvor_hlavicku(poradie_fragmentu,cast_obsahu):
     return hlavicka.encode()
 
 
-def klient_chce_poslat_obrazok(moj_socket,server,velkost_fragmentu):          # tu treba vyriesit ked packety budu chybat, cakanie na acknowledgement
+def klient_chce_poslat_obrazok(moj_socket,server,velkost_fragmentu):          # skusit nasimulovat chybu
     nazov = input("Zadajte nazov obrazku:  ")
     reakcia = ""
     moj_socket.sendto("O".encode(), server)
@@ -182,22 +184,30 @@ def klient_chce_poslat_obrazok(moj_socket,server,velkost_fragmentu):          # 
         cast_obsahu = obsah[:velkost_fragmentu]
         if (len(cast_obsahu) < velkost_fragmentu):
              cast_obsahu += (velkost_fragmentu - len(cast_obsahu))*b" "
-        obsah = obsah[velkost_fragmentu:]
 
         hlavicka = vytvor_hlavicku(poradie_fragmentu,cast_obsahu)
         moj_socket.sendto(hlavicka + cast_obsahu, server)   
 
-        reakcia, server = moj_socket.recvfrom(max_velkost)
-        if (reakcia.decode() == "N"+str(poradie_fragmentu)):
-            while (reakcia.decode() != "Y" + str(poradie_fragmentu)):
-                moj_socket.sendto(hlavicka + cast_obsahu, server)    
-                reakcia, server = moj_socket.recvfrom(max_velkost)
-        poradie_fragmentu += 1
+        moj_socket.settimeout(20)
+        try:
+            reakcia, server = moj_socket.recvfrom(max_velkost)
+            moj_socket.settimeout(None)
+            if (reakcia.decode() == "N"+str(poradie_fragmentu)):
+                 continue
+            elif (reakcia.decode() == "Y"+str(poradie_fragmentu)):
+                 obsah = obsah[velkost_fragmentu:] 
+                 poradie_fragmentu += 1
+            else:
+                continue
+
+        except:
+            moj_socket.settimeout(None)
+            continue
 
     print("Obrazok poslany")
     moj_socket.sendto("E".encode(), server)
 
-def klient_chce_poslat_spravu(moj_socket,server,velkost_fragmentu):            # tu treba vyriesit ked packety budu chybat, cakanie na acknowledgement
+def klient_chce_poslat_spravu(moj_socket,server,velkost_fragmentu):            # skusit nasimulovat chybu
      sprava = input("Napiste spravu:  ")
      reakcia = ""
      moj_socket.sendto("S".encode(), server)
@@ -206,17 +216,25 @@ def klient_chce_poslat_spravu(moj_socket,server,velkost_fragmentu):            #
          cast_spravy = sprava[:velkost_fragmentu]
          if (len(cast_spravy) < velkost_fragmentu):
              cast_spravy += (velkost_fragmentu - len(cast_spravy))*" "
-         sprava = sprava[velkost_fragmentu:]
         
          hlavicka = vytvor_hlavicku(poradie_fragmentu,cast_spravy.encode())
          moj_socket.sendto(hlavicka + cast_spravy.encode(), server)   
 
-         reakcia, server = moj_socket.recvfrom(max_velkost)
-         if (reakcia.decode() == "N"+str(poradie_fragmentu)):
-            while (reakcia.decode() != "Y" + str(poradie_fragmentu)):
-                moj_socket.sendto(hlavicka + cast_obsahu, server)    
-                reakcia, server = moj_socket.recvfrom(max_velkost)
-         poradie_fragmentu += 1
+         moj_socket.settimeout(20)
+         try:
+            reakcia, server = moj_socket.recvfrom(max_velkost)
+            moj_socket.settimeout(None)
+            if (reakcia.decode() == "N"+str(poradie_fragmentu)):
+                 continue
+            elif (reakcia.decode() == "Y"+str(poradie_fragmentu)):
+                 sprava = sprava[velkost_fragmentu:] 
+                 poradie_fragmentu += 1
+            else:
+                continue
+
+         except:
+            moj_socket.settimeout(None)
+            continue
 
      print("Sprava poslana")
      moj_socket.sendto("E".encode(), server)
@@ -228,9 +246,8 @@ def klient_chce_poslat_spravu(moj_socket,server,velkost_fragmentu):            #
 
 
 def pusti_ako_klient():
-     ip_servera,port,server,velkost_fragmentu = pustim_sa_pri_starte_klienta()
+     server,velkost_fragmentu = pustim_sa_pri_starte_klienta()
      moj_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-     moj_socket.connect((ip_servera,port))
      som_pripojeny = False
      prikaz = input("Sem napiste prikaz:  ")
      while True:
