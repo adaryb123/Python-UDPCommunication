@@ -1,2 +1,2 @@
 # Python-UDPCommunication
-Program that provides communication between 2 computers using LAN cable (message and file transfer) using sockets and modified UDP protocol.
+Program that provides communication (message and file transfer) between 2 computers with LAN cable using sockets and modified UDP protocol.
